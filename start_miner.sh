@@ -64,8 +64,24 @@ for raw_id in $(echo "$IDS_STRING" | tr ',' '\n'); do
 
   PORT=$((AXON_BASE_PORT + I))
   SESSION="${SESSION_PREFIX}${I}"
+  SCREEN_CMD="cd $REPO
+source $VENV_BIN/activate
+export PYTHONPATH=$REPO:\${PYTHONPATH:-}
+echo '[runtime] HOTKEY_ID=$I'
+$VENV_BIN/python -m neurons.miner \
+  --netuid 126 \
+  --wallet.name $WALLET_NAME \
+  --wallet.hotkey hk$I \
+  --subtensor.network $SUBTENSOR_NETWORK \
+  --subtensor.chain_endpoint $SUBTENSOR_CHAIN_ENDPOINT \
+  --axon.port $PORT \
+  --logging.debug
+echo '[miner-exit] Process ended, shell remains active'
+/bin/bash"
 
   echo "[start] HOTKEY_ID=$I SESSION=$SESSION PORT=$PORT"
+  echo "[command] Screen payload for $SESSION:"
+  printf '%s\n' "$SCREEN_CMD"
 
   OLD_PID=$(screen -list 2>/dev/null | grep "\.$SESSION[[:space:]]" | awk '{print $1}' | cut -d. -f1 || true)
   if [[ -n "$OLD_PID" ]]; then
@@ -73,22 +89,7 @@ for raw_id in $(echo "$IDS_STRING" | tr ',' '\n'); do
     screen -S "$OLD_PID" -X quit 2>/dev/null || true
   fi
 
-  screen -dmS "$SESSION" /bin/bash -c "
-    cd $REPO
-    source $VENV_BIN/activate
-    export PYTHONPATH=$REPO:\${PYTHONPATH:-}
-    echo '[runtime] HOTKEY_ID=$I'
-    $VENV_BIN/python -m neurons.miner \
-      --netuid 126 \
-      --wallet.name $WALLET_NAME \
-      --wallet.hotkey hk$I \
-      --subtensor.network $SUBTENSOR_NETWORK \
-      --subtensor.chain_endpoint $SUBTENSOR_CHAIN_ENDPOINT \
-      --axon.port $PORT \
-      --logging.debug
-    echo '[miner-exit] Process ended, shell remains active'
-    /bin/bash
-  "
+  screen -dmS "$SESSION" /bin/bash -c "$SCREEN_CMD"
 
   if [[ $? -eq 0 ]]; then
     echo "[ok] Session $SESSION started"
